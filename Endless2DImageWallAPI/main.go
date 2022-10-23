@@ -18,7 +18,7 @@ func main() {
 
 	handler := http.HandlerFunc(GetImages)
 
-	http.Handle("/image", handler)
+	http.Handle("/images", handler)
 	fmt.Println("Server started at port 8080")
 
 	if err := http.ListenAndServe(":8080", nil); err != nil {
