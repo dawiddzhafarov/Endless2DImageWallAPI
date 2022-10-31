@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -18,12 +20,36 @@ func main() {
 
 	handler := http.HandlerFunc(GetImages)
 
-	http.Handle("/images", handler)
+	http.Handle("/images", basicAuth(handler))
 	fmt.Println("Server started at port 8080")
 
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		return
 	}
+}
+
+func basicAuth(next http.HandlerFunc) http.HandlerFunc {
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		username, password, ok := r.BasicAuth()
+		if ok {
+			usernameHash := sha256.Sum256([]byte(username))
+			passwordHash := sha256.Sum256([]byte(password))
+			correctUsername := sha256.Sum256([]byte("sample_user"))
+			correctPassword := sha256.Sum256([]byte("sample_password"))
+
+			usernameMatch := subtle.ConstantTimeCompare(usernameHash[:], correctUsername[:]) == 1
+			passwordMatch := subtle.ConstantTimeCompare(passwordHash[:], correctPassword[:]) == 1
+
+			if usernameMatch && passwordMatch {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+		w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	})
 }
 
 // GetImagesResponse contains Images with metadata
