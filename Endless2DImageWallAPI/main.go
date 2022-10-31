@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/nfnt/resize"
 	"image"
+	"image/jpeg"
 	_ "image/jpeg"
 	_ "image/png"
 	"io/fs"
@@ -102,6 +105,7 @@ func toBase64(b []byte) string {
 
 // createResponse creates JSON response
 func createResponse(files []fs.FileInfo) (*GetImagesResponse, error) {
+
 	var imagesList []Image
 	for i, file := range files {
 		img, err := ioutil.ReadFile(imagesDir + "/" + file.Name())
@@ -156,3 +160,27 @@ func getImageDimensions(filePath string) (*image.Config, error) {
 
 	return &imgConfig, nil
 }
+
+func resizeImage(oldImage []byte, width, height uint) ([]byte, error) {
+	img, _, err := image.Decode(bytes.NewReader(oldImage))
+	if err != nil {
+		return nil, err
+	}
+
+	newImage := resize.Resize(width, height, img, resize.Lanczos3)
+	buf := new(bytes.Buffer)
+	err = jpeg.Encode(buf, newImage, nil)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+//resizedImage, err := resizeImage(img, 100, 100)
+//if err != nil {
+//return nil, err
+//}
+//err = os.WriteFile("dat1.jpg", resizedImage, 0644)
+//if err != nil {
+//return nil, err
+//}
