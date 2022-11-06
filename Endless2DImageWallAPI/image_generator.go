@@ -3,13 +3,12 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"net/http"
 	"sort"
 )
 
-var dimensions map[int]Position = map[int]Position{
+var dimensions = map[int]Coordinates{
 	0: {
 		X: 2000,
 		Y: 2000,
@@ -38,91 +37,39 @@ var numOfSquares int
 
 var imagesFilled [][]bool
 
-type plainInfo struct {
-	plain           [][]bool
-	numberOfSquares int
+type MatrixInfo struct {
+	Matrix [][]bool
 }
 
-func doSomething() (*GetImagesResponse, error) {
-	pos := Position{
-		X: 2000,
-		Y: 2000,
+func calculateImageMatrix(x, y, z int) (*GetImagesResponse, error) {
+	//dim := dimensions[z]
+	//matrixInfo := createMatrix(dim)
+	//grid := matrixInfo.Matrix
+
+	grid := createMatrix(dimensions[z]).Matrix
+
+	for i := 0; i < numOfSquares; i++ {
+		grid[i] = make([]bool, dimensions[z].X/squareSize)
 	}
 
-	plain := createPlain(pos)
-
-	grid := plain.plain
-
-	for i := 0; i < plain.numberOfSquares; i++ {
-		grid[i] = make([]bool, pos.X/squareSize)
-	}
 	imagesFilled = grid
-
 	var imagesResponse []Image
-	// while grid not filled
-	for !imagesFilled[numOfSquares-1][numOfSquares-1] || !imagesFilled[2][numOfSquares-1] {
-		image, err := getImage(imagesFilled) //add to tge img slice
+
+	for !checkLastRow() {
+		image, err := getImage(imagesFilled)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("getImage error: %s", err)
 		}
 		imagesResponse = append(imagesResponse, *image)
 	}
 
-	return &GetImagesResponse{
-		Images: imagesResponse,
-	}, nil
+	return &GetImagesResponse{Images: imagesResponse}, nil
 }
 
-func createPlain(position Position) *plainInfo {
-	switch position.X {
-	case 2000:
-		const numberOfSquares = 2000 / 400
-		numOfSquares = numberOfSquares
-		imagesPlain := make([][]bool, numberOfSquares)
-		return &plainInfo{
-			plain:           imagesPlain,
-			numberOfSquares: numberOfSquares}
-
-	}
-	return nil
-}
-
-func fillPlain(plain [][]bool, numOfSquares, x, y int) ([]int, []int) {
-	var filledIndexesX []int
-	var filledIndexesY []int
-	for i := 0; i < numOfSquares; i++ {
-		for j := 0; j < numOfSquares; j++ {
-			if !plain[j][i] {
-				for l := i; l < y+i; l++ {
-					if l > numOfSquares-1 {
-						continue
-					}
-					for k := j; k < x+j; k++ {
-						if k > numOfSquares-1 {
-							continue
-						}
-						plain[k][l] = true
-
-						filledIndexesX = append(filledIndexesX, k)
-					}
-					filledIndexesY = append(filledIndexesY, l)
-				}
-				fmt.Println(plain)
-				//fmt.Println(numOfSquares)
-				//fmt.Println(filledIndexesX)
-				//fmt.Println(filledIndexesY)
-				//fmt.Println(imagesFilled)
-				return filledIndexesX, filledIndexesY
-			}
-		}
-	}
-	return filledIndexesX, filledIndexesY
-}
-
-func getImage(plain [][]bool) (*Image, error) {
+func getImage(currentGrid [][]bool) (*Image, error) {
 	files, err := ioutil.ReadDir(imagesDir + "/")
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("could not read dir: %s", err)
 	}
 
 	numOfFiles := len(files)
@@ -133,13 +80,16 @@ func getImage(plain [][]bool) (*Image, error) {
 
 	cfg, err := getImageDimensions(imagesDir + "/" + file.Name())
 	if err != nil {
-		return nil, fmt.Errorf("could not get image dimensions: %s, %s", file.Name(), err)
+		return nil, fmt.Errorf("could not get image dimensions: %s, error: %s", file.Name(), err)
 	}
 
-	x, y := howManySquares(Position{X: cfg.Width, Y: cfg.Height})
-	xIndexes, yIndexes := fillPlain(plain, numOfSquares, x, y)
+	x, y := howManySquares(Coordinates{X: cfg.Width, Y: cfg.Height})
+	xIndexes, yIndexes, err := fillGrid(currentGrid, x, y)
+	if err != nil {
+		return nil, fmt.Errorf("fillGrid error: %s", err)
+	}
 
-	desiredPosition := calculatePositions(xIndexes, yIndexes)
+	desiredPosition := calculatePositions(xIndexes, yIndexes) // TODO
 
 	img, err := ioutil.ReadFile(imagesDir + "/" + file.Name())
 	if err != nil {
@@ -158,7 +108,7 @@ func getImage(plain [][]bool) (*Image, error) {
 	image := &Image{
 		ID:       0,
 		Position: desiredPosition,
-		Dimensions: Position{
+		Dimensions: Coordinates{
 			cfg.Width,
 			cfg.Height,
 		},
@@ -167,7 +117,64 @@ func getImage(plain [][]bool) (*Image, error) {
 	return image, nil
 }
 
-func calculatePositions(x, y []int) Position {
+// fillGrid fills the squares in matrix based on provided number of squares used by an image. Function
+// return indexes in the matrix, which have been filled.
+func fillGrid(currentGrid [][]bool, x, y int) ([]int, []int, error) {
+	var filledIndexesX, filledIndexesY []int
+
+	for i := 0; i < numOfSquares; i++ {
+		for j := 0; j < numOfSquares; j++ {
+			if !currentGrid[j][i] {
+				for l := i; l < y+i; l++ {
+					if l > numOfSquares-1 {
+						continue
+					}
+					for k := j; k < x+j; k++ {
+						if k > numOfSquares-1 {
+							continue
+						}
+						currentGrid[k][l] = true
+						filledIndexesX = append(filledIndexesX, k)
+					}
+					filledIndexesY = append(filledIndexesY, l)
+				}
+				return filledIndexesX, filledIndexesY, nil
+			}
+		}
+	}
+	return nil, nil, fmt.Errorf("could not fill the matrix") // if error return indexes, not error
+}
+
+func checkLastRow() bool {
+	for i := 0; i < numOfSquares; i++ {
+		if !imagesFilled[numOfSquares-1][i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func createMatrix(dim Coordinates) *MatrixInfo {
+	num := dim.X / squareSize
+	matrix := make([][]bool, num)
+	numOfSquares = num
+	return &MatrixInfo{
+		Matrix: matrix,
+	}
+	//switch dim.X {
+	//case 2000:
+	//	const numberOfSquares = 2000 / 400
+	//	numOfSquares = numberOfSquares
+	//	imagesPlain := make([][]bool, numberOfSquares)
+	//	return &plainInfo{
+	//		plain:           imagesPlain,
+	//		numberOfSquares: numberOfSquares}
+	//
+	//}
+}
+
+func calculatePositions(x, y []int) Coordinates {
 	sort.Ints(x)
 	sort.Ints(y)
 	if len(x) == 0 || len(y) == 0 {
@@ -175,33 +182,33 @@ func calculatePositions(x, y []int) Position {
 	}
 	minX := x[0]
 	mixY := y[0]
-	return Position{
+	return Coordinates{
 		X: minX * 400,
 		Y: mixY * 400,
 	}
 }
 
-func howManySquares(dimensions Position) (int, int) {
-	var xSquares int
-	var ySquares int
+// howManySquares counts how many squares given image takes up horizontally and vertically
+func howManySquares(dimensions Coordinates) (int, int) {
+	var xSquares, ySquares int
 
 	xRatio := float64(dimensions.X) / float64(squareSize)
 	yRatio := float64(dimensions.Y) / float64(squareSize)
 
-	intNumberX := int(xRatio)
-	decimalPartX := xRatio - float64(intNumberX)
+	intPartX := int(xRatio)
+	decimalPartX := xRatio - float64(intPartX)
 	if decimalPartX < 0.5 {
-		xSquares = intNumberX
+		xSquares = intPartX
 	} else {
-		xSquares = intNumberX + 1
+		xSquares = intPartX + 1
 	}
 
-	intNumberY := int(yRatio)
-	decimalPartY := yRatio - float64(intNumberY)
+	intPartY := int(yRatio)
+	decimalPartY := yRatio - float64(intPartY)
 	if decimalPartY < 0.5 {
-		ySquares = intNumberY
+		ySquares = intPartY
 	} else {
-		ySquares = intNumberY + 1
+		ySquares = intPartY + 1
 	}
 
 	return xSquares, ySquares
