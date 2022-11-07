@@ -23,7 +23,7 @@ type GetImagesResponse struct {
 
 // Image contains base64 encoded image with metadata
 type Image struct {
-	ID         int         `json:"id"`
+	Name       string      `json:"name"`
 	Position   Coordinates `json:"position"`
 	Dimensions Coordinates `json:"dimensions"`
 	Base64     string      `json:"base64"`
@@ -43,10 +43,12 @@ const (
 	correctPassword = "sample_password"
 )
 
+// GetImages handles requests at `/images`
 func GetImages(w http.ResponseWriter, r *http.Request) {
 	xRaw := r.URL.Query().Get("x")
 	yRaw := r.URL.Query().Get("y")
 	zRaw := r.URL.Query().Get("z")
+
 	x, err := strconv.Atoi(xRaw)
 	if err != nil {
 		log.Fatalf("could not convert %s into int: %s", xRaw, err)
@@ -62,7 +64,7 @@ func GetImages(w http.ResponseWriter, r *http.Request) {
 
 	getImagesResponse, err := calculateImageMatrix(x, y, z)
 	if err != nil {
-		log.Fatal("error")
+		log.Fatal("calculateImageMatrix")
 	}
 
 	w.Header().Set("Content-Type", "application/json")
