@@ -97,7 +97,7 @@ func getImage(currentGrid [][]bool) (*Image, error) {
 			X: cfg.Width,
 			Y: cfg.Height,
 		},
-		Base64: "", //base64Encoding,
+		Base64: base64Encoding,
 	}
 
 	return image, nil
