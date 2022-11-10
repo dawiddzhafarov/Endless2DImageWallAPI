@@ -61,7 +61,8 @@ public class MainActivity extends AppCompatActivity{
 
         //new JsonTask().execute("http://10.0.2.2:8080/image");
         try {
-            url = new URL("http://10.0.2.2:8080/images");
+            url = new URL("http://10.0.2.2:8080/images?z=1&x=1&y=1");
+//            url = new URL("https://google.com");
         } catch (MalformedURLException e) {
             e.printStackTrace();
             url = null;
@@ -113,9 +114,13 @@ public class MainActivity extends AppCompatActivity{
         BufferedReader reader = null;
         try {
             connection = (HttpURLConnection) url.openConnection();
-            connection.addRequestProperty("username","sample_user");
-            connection.addRequestProperty("password","sample_password");
-            connection.connect();;
+//            connection.addRequestProperty("username","sample_user");
+//            connection.addRequestProperty("password","sample_password");
+            String credential = Base64.encodeToString( ("sample_user"+":"+"sample_password").getBytes("UTF-8"), Base64.DEFAULT);
+            connection.addRequestProperty("Authorization", "Basic " + credential.substring(0, credential.length()-1));
+            System.out.println(connection);
+            connection.connect();
+            System.out.println(connection.getResponseCode());
 
             InputStream stream = connection.getInputStream();
 
