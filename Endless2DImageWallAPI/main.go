@@ -9,9 +9,11 @@ import (
 
 func main() {
 
-	handler := http.HandlerFunc(GetImages)
+	imagesHandler := http.HandlerFunc(GetImages)
+	singleImageHandler := http.HandlerFunc(GetImage)
 
-	http.Handle("/images", basicAuth(handler))
+	http.Handle("/images", basicAuth(imagesHandler))
+	http.Handle("/image", basicAuth(singleImageHandler))
 	fmt.Println("Server started at port 8080")
 	fmt.Println("Available endpoint: `/images`")
 	fmt.Println("To access the endpoint, add basic authorization header with username and password")

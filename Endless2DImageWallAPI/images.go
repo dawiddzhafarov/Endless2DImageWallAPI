@@ -50,16 +50,21 @@ func GetImages(w http.ResponseWriter, r *http.Request) {
 	zRaw := r.URL.Query().Get("z")
 
 	x, err := strconv.Atoi(xRaw)
+	var errorString string
 	if err != nil {
-		log.Fatalf("could not convert %s into int: %s", xRaw, err)
+		errorString += fmt.Sprintf("expected int, got: %T (%s)\n", xRaw, xRaw)
 	}
 	y, err := strconv.Atoi(yRaw)
 	if err != nil {
-		log.Fatalf("could not convert %s into int: %s", yRaw, err)
+		errorString += fmt.Sprintf("expected int, got: %T (%s)\n", yRaw, yRaw)
 	}
 	z, err := strconv.Atoi(zRaw)
 	if err != nil {
-		log.Fatalf("could not convert %s into int: %s", zRaw, err)
+		errorString += fmt.Sprintf("expected int, got: %T (%s)\n", zRaw, zRaw)
+	}
+
+	if err != nil {
+		http.Error(w, fmt.Sprintf("API error: %s", errorString), http.StatusBadRequest)
 	}
 
 	getImagesResponse, err := calculateImageMatrix(x, y, z)
@@ -72,6 +77,10 @@ func GetImages(w http.ResponseWriter, r *http.Request) {
 	if err = json.NewEncoder(w).Encode(getImagesResponse); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func GetImage(w http.ResponseWriter, r *http.Request) {
+
 }
 
 // toBase64 encodes bytes as base64 string
