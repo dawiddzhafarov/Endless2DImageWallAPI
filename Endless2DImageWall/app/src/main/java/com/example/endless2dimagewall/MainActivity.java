@@ -3,6 +3,7 @@ package com.example.endless2dimagewall;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.constraintlayout.widget.ConstraintSet;
 
 import android.annotation.SuppressLint;
 import android.app.ProgressDialog;
@@ -41,6 +42,8 @@ import java.util.Iterator;
 import java.util.Scanner;
 import java.lang.Object;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.json.*;
 
@@ -58,6 +61,9 @@ public class MainActivity extends AppCompatActivity{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         ConstraintLayout layout = (ConstraintLayout) findViewById(R.id.main);
+        ImageView view = new ImageView(this);
+        view.setId(View.generateViewId());  // cannot set id after add
+        layout.addView(view,0);
 
         //new JsonTask().execute("http://10.0.2.2:8080/image");
         try {
@@ -160,6 +166,37 @@ public class MainActivity extends AppCompatActivity{
     public void testShowImg(JSONObject json) {
         try {
             JSONArray jsonArray = json.getJSONArray("images"); // wchodze głebiej, mam tablice 0,1,2
+            System.out.println("test");
+            System.out.println(jsonArray);
+            System.out.println(jsonArray.length());
+            IntStream.range(0,jsonArray.length())
+                    .mapToObj(i -> {
+                        try {
+                            System.out.println("jej");
+                            return jsonArray.getJSONObject(i).getString("base64");
+                        } catch (JSONException e) {
+                            System.out.println("fuck");
+                            return null;
+                        }
+                    }).forEach(jsonObject -> {
+                        ConstraintLayout layout = (ConstraintLayout) findViewById(R.id.main);
+                        ConstraintSet set = new ConstraintSet();
+
+                        ImageView view = new ImageView(this);
+                        view.setId(View.generateViewId());  // cannot set id after add
+//                        layout.addView(view,0);
+//                        set.clone(layout);
+//                        set.connect(view.getId(), ConstraintSet.TOP, layout.getId(), ConstraintSet.TOP, 60);
+//                        set.applyTo(layout);
+
+                        CompletableFuture.runAsync(()->layout.addView(view,0 ))
+                                .thenRunAsync(()->set.clone(layout))
+                                .thenRunAsync(()->set.connect(view.getId(), ConstraintSet.TOP, layout.getId(), ConstraintSet.TOP, 60))
+                                .thenRunAsync(()->set.applyTo(layout))
+                                .thenRunAsync(()->testDIsplay(jsonObject,view));
+                       // testDIsplay(jsonObject,view);
+                    });
+            System.out.println("Po streamie");
             String buffer = jsonArray.get(1).toString(); // pobieram element 1, zamieniam na string
             System.out.println(buffer);
             JSONObject jsonNested = new JSONObject(buffer); // zamieniam string na json
@@ -175,78 +212,117 @@ public class MainActivity extends AppCompatActivity{
         }catch (JSONException e){}
 
     }
+    public void testDIsplay(String base64, ImageView view) {
+        System.out.println("tworze image wiev");
+        byte[] decodedString = new byte[0];
+//        String base64 = null;
+//        try {
+//            base64 = json.getString("base64");
+//        } catch (JSONException e) {
+//            e.printStackTrace();
+//        }
 
-    private class JsonTask extends AsyncTask<String, String, String> {
+        decodedString = Base64.decode(base64.split(",")[1].trim(), Base64.DEFAULT);
 
-        protected String doInBackground(String... params) {
+        Bitmap decodedByte = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
+//        ImageView imageView = new ImageView(this);
+//
+//        ConstraintLayout layout = (ConstraintLayout) findViewById(R.id.main);
+////        layout.addView(imageView);
+//        ConstraintSet set = new ConstraintSet();
+//
+//        ImageView view = new ImageView(this);
+//        view.setId(View.generateViewId());  // cannot set id after add
+//        CompletableFuture.runAsync(()->layout.addView(view));
+//        set.clone(layout);
+//        set.connect(view.getId(), ConstraintSet.TOP, layout.getId(), ConstraintSet.TOP, 60);
+//        set.applyTo(layout);
 
-            HttpURLConnection connection = null;
-            BufferedReader reader = null;
-            try {
-                URL url = new URL(params[0]);
-                connection = (HttpURLConnection) url.openConnection();
-                connection.connect();;
+        CompletableFuture.runAsync(()->view.setImageBitmap(decodedByte));
+        ImageView img = (ImageView) findViewById(R.id.imageView);
+        CompletableFuture.runAsync(()->img.setImageBitmap(decodedByte));
+        ConstraintLayout layout = (ConstraintLayout) findViewById(R.id.main);
+        System.out.println(layout.toString());
 
-                InputStream stream = connection.getInputStream();
 
-                reader = new BufferedReader(new InputStreamReader(stream));
 
-                StringBuffer buffer = new StringBuffer();
-                String line = "";
 
-                while ((line = reader.readLine()) != null) {
-                    buffer.append(line+"\n");
-                    Log.d("Response: ", "> " + line);   //here u ll get whole response...... :-)
-
-                }
-
-                return buffer.toString();
-
-            } catch (MalformedURLException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                if (connection != null) {
-                    connection.disconnect();
-                }
-                try {
-                    if (reader != null) {
-                        reader.close();
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(String result) {
-            super.onPostExecute(result);
-            System.out.println("AAAAAAAAAAAAAAAA");
-            System.out.println(result);
-            try {
-                JSONObject json = new JSONObject(result); //zamiana ze stringa na jsona
-                JSONArray jsonArray = json.getJSONArray("images"); // wchodze głebiej, mam tablice 0,1,2
-                String buffer = jsonArray.get(1).toString(); // pobieram element 1, zamieniam na string
-                System.out.println(buffer);
-                JSONObject jsonNested = new JSONObject(buffer); // zamieniam string na json
-                System.out.println(jsonNested.get("base64"));
-                String buffer2 = jsonNested.get("base64").toString();// pobieram element base64 z listy
-                buffer = buffer2.substring(buffer2.indexOf(",") + 1); // usuwam niepotrzebne rzeczy
-                buffer.trim();
-                String encodedImage = buffer;
-                byte[] decodedString = Base64.decode(encodedImage, Base64.DEFAULT);
-                Bitmap decodedByte = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
-                ImageView img = (ImageView) findViewById(R.id.imageView);
-                img.setImageBitmap(decodedByte);
-
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-        }
+//        Bitmap decodedByte = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
+//        ImageView img = (ImageView) findViewById(R.id.imageView);
+//        CompletableFuture.runAsync(()->img.setImageBitmap(decodedByte));
     }
+
+//    private class JsonTask extends AsyncTask<String, String, String> {
+//
+//        protected String doInBackground(String... params) {
+//
+//            HttpURLConnection connection = null;
+//            BufferedReader reader = null;
+//            try {
+//                URL url = new URL(params[0]);
+//                connection = (HttpURLConnection) url.openConnection();
+//                connection.connect();;
+//
+//                InputStream stream = connection.getInputStream();
+//
+//                reader = new BufferedReader(new InputStreamReader(stream));
+//
+//                StringBuffer buffer = new StringBuffer();
+//                String line = "";
+//
+//                while ((line = reader.readLine()) != null) {
+//                    buffer.append(line+"\n");
+//                    Log.d("Response: ", "> " + line);   //here u ll get whole response...... :-)
+//
+//                }
+//
+//                return buffer.toString();
+//
+//            } catch (MalformedURLException e) {
+//                e.printStackTrace();
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            } finally {
+//                if (connection != null) {
+//                    connection.disconnect();
+//                }
+//                try {
+//                    if (reader != null) {
+//                        reader.close();
+//                    }
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
+//            }
+//            return null;
+//        }
+//
+//        @Override
+//        protected void onPostExecute(String result) {
+//            super.onPostExecute(result);
+//            System.out.println("AAAAAAAAAAAAAAAA");
+//            System.out.println(result);
+//            try {
+//                JSONObject json = new JSONObject(result); //zamiana ze stringa na jsona
+//                JSONArray jsonArray = json.getJSONArray("images"); // wchodze głebiej, mam tablice 0,1,2
+//                String buffer = jsonArray.get(1).toString(); // pobieram element 1, zamieniam na string
+//                System.out.println(buffer);
+//                JSONObject jsonNested = new JSONObject(buffer); // zamieniam string na json
+//                System.out.println(jsonNested.get("base64"));
+//                String buffer2 = jsonNested.get("base64").toString();// pobieram element base64 z listy
+//                buffer = buffer2.substring(buffer2.indexOf(",") + 1); // usuwam niepotrzebne rzeczy
+//                buffer.trim();
+//                String encodedImage = buffer;
+//                byte[] decodedString = Base64.decode(encodedImage, Base64.DEFAULT);
+//                Bitmap decodedByte = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length);
+//                ImageView img = (ImageView) findViewById(R.id.imageView);
+//                img.setImageBitmap(decodedByte);
+//
+//            } catch (JSONException e) {
+//                e.printStackTrace();
+//            }
+//        }
+//    }
 
 
 }
